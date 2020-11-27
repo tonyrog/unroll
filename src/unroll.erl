@@ -22,13 +22,13 @@ expand({'for',Var,Start,Stop,Code}, E) when Start > Stop ->
 expand({'for',Var,Start,Stop,Step,Code}, E) ->
     expand_loop(Var,Start,Stop,Step,Code,E);
 expand({'if',Cond,Then,Else}, E) when not is_list(Cond) ->
-    case expr(Cond, E) of
+    case eval_expr(Cond, E) of
 	true -> expand(Then,E);
 	false -> expand(Else,E);
 	Cond1 -> {'if',Cond1,expand(Then,E),expand(Else,E)}
     end;
 expand({'if',Cond,Then}, E) ->
-    case expr(Cond, E) of
+    case eval_expr(Cond, E) of
 	true -> expand(Then,E);
 	false -> []
     end;
@@ -52,7 +52,7 @@ expand(Expr, E) when is_tuple(Expr) ->
 		    {Name,XOutput,XInput}
 	    end;
 	_Prio ->
-	        expr(Expr, E)
+	    eval_expr(Expr, E)
     end;
 expand([H|T], E) ->
     [expand(H,E)|expand(T,E)];
@@ -105,16 +105,16 @@ expand_loop(Var,I,N,S,Code,E) ->
     end.
 
 expand_var_list(Vs,E) -> 
-    [expr(V,E) || V <- Vs].
+    [eval_expr(V,E) || V <- Vs].
 
 %% meta expressions
-expr(Const, _E) when is_number(Const) -> Const;
-expr(Const, _E) when is_boolean(Const) -> Const;
-expr(Var={var,_}, E) -> 
+eval_expr(Const, _E) when is_number(Const) -> Const;
+eval_expr(Const, _E) when is_boolean(Const) -> Const;
+eval_expr(Var={var,_}, E) -> 
     maps:get(Var, E, Var);
-expr({subscript,Var,Index},E) ->
-    Is = [expr(I,E) || I <- Index],
-    case expr(Var,E) of
+eval_expr({subscript,Var,Index},E) ->
+    Is = [eval_expr(I,E) || I <- Index],
+    case eval_expr(Var,E) of
 	V1 = {var,_} ->
 	    maps:get({subscript,V1,Is}, E, {subscript,V1,Is});
 	Map when is_map(Map) ->
@@ -122,53 +122,53 @@ expr({subscript,Var,Index},E) ->
 	V1 ->
 	    {subscript,V1,Is}
     end;
-expr({'-',A},E) -> fx('-', '-', A, E);
-expr({'~',A},E) -> fx('bnot', '~', A, E);
-expr({'!',A},E) -> fx('not', '!', A, E);
-expr({'+',A,B},E) -> fx('+', '+', A, B, E);
-expr({'-',A,B},E) -> fx('-', '-', A, B, E);
-expr({'*',A,B},E) -> fx('*', '*', A, B, E);
-expr({'/',A,B},E) -> fx('div', '/', A, B, E);
-expr({'%',A,B},E) -> fx('rem', '%', A, B, E);
-expr({'&',A,B},E) -> fx('band', '&', A, B, E);
-expr({'|',A,B},E) -> fx('bor', '|', A, B, E);
-expr({'^',A,B},E) -> fx('bxor', '^', A, B, E);
-expr({'<<',A,B},E) -> fx('bsl', '<<', A, B, E);
-expr({'>>',A,B},E) -> fx('bsr', '>>', A, B, E);
-expr({'<',A,B},E) -> fx('<', '<', A, B, E);
-expr({'<=',A,B},E) -> fx('=<', '<=', A, B, E);
-expr({'>',A,B},E) -> fx('>', '>', A, B, E);
-expr({'>=',A,B},E) -> fx('>=', '>=', A, B, E);
-expr({'==',A,B},E) -> fx('=:=', '==', A, B, E);
-expr({'!=',A,B},E) -> fx('=/=', '!=', A, B, E);
-expr({'&&',A,B},E) -> fx('and', '&&', A, B, E);
-expr({'||',A,B},E) -> fx('or', '||', A, B, E);
-expr({'?:',C,A,B},E) -> ite('?:', C, A, B, E);
-expr({'=',Var,V},E) -> fa('=',Var,V,E).
+eval_expr({'-',A},E) -> fx('-', '-', A, E);
+eval_expr({'~',A},E) -> fx('bnot', '~', A, E);
+eval_expr({'!',A},E) -> fx('not', '!', A, E);
+eval_expr({'+',A,B},E) -> fx('+', '+', A, B, E);
+eval_expr({'-',A,B},E) -> fx('-', '-', A, B, E);
+eval_expr({'*',A,B},E) -> fx('*', '*', A, B, E);
+eval_expr({'/',A,B},E) -> fx('div', '/', A, B, E);
+eval_expr({'%',A,B},E) -> fx('rem', '%', A, B, E);
+eval_expr({'&',A,B},E) -> fx('band', '&', A, B, E);
+eval_expr({'|',A,B},E) -> fx('bor', '|', A, B, E);
+eval_expr({'^',A,B},E) -> fx('bxor', '^', A, B, E);
+eval_expr({'<<',A,B},E) -> fx('bsl', '<<', A, B, E);
+eval_expr({'>>',A,B},E) -> fx('bsr', '>>', A, B, E);
+eval_expr({'<',A,B},E) -> fx('<', '<', A, B, E);
+eval_expr({'<=',A,B},E) -> fx('=<', '<=', A, B, E);
+eval_expr({'>',A,B},E) -> fx('>', '>', A, B, E);
+eval_expr({'>=',A,B},E) -> fx('>=', '>=', A, B, E);
+eval_expr({'==',A,B},E) -> fx('=:=', '==', A, B, E);
+eval_expr({'!=',A,B},E) -> fx('=/=', '!=', A, B, E);
+eval_expr({'&&',A,B},E) -> fx('and', '&&', A, B, E);
+eval_expr({'||',A,B},E) -> fx('or', '||', A, B, E);
+eval_expr({'?:',C,A,B},E) -> ite('?:', C, A, B, E);
+eval_expr({'=',Var,V},E) -> fa('=',Var,V,E).
     
 is_constant(Value) ->
     is_number(Value) orelse is_boolean(Value).
 
 fa(Op,Var,V,E) ->
-    {Op,expr(Var,E),expr(V,E)}.
+    {Op,eval_expr(Var,E),eval_expr(V,E)}.
 
 ite(_Op,C, A, B, E) ->
-    case expr(C,E) of
-	true -> expr(A,E);
-	false -> expr(B,E);
-	C1 -> {'?:',C1,expr(A,E),expr(B,E)}
+    case eval_expr(C,E) of
+	true -> eval_expr(A,E);
+	false -> eval_expr(B,E);
+	C1 -> {'?:',C1,eval_expr(A,E),eval_expr(B,E)}
     end.
 
 fx(EOp,Op,A,E) ->
-    A1 = expr(A,E),
+    A1 = eval_expr(A,E),
     case is_constant(A1) of
 	true -> apply(erlang, EOp, [A1]);
 	false -> {Op,A1}
     end.
 
 fx(EOp,Op,A,B,E) ->
-    A1 = expr(A,E),
-    B1 = expr(B,E),
+    A1 = eval_expr(A,E),
+    B1 = eval_expr(B,E),
     case is_constant(A1) andalso is_constant(B1) of
 	true -> apply(erlang, EOp, [A1,B1]);
 	false -> {Op,A1,B1}
@@ -326,7 +326,8 @@ test3(Xl, Yl) ->
 	  ]}],
     XCode = expand(Code, #{}),
     file:write_file("unroll_"++Name++".c",
-		    ["#include \"unroll_instr.c\"","\n",
+		    ["#include \"unroll_auto_config.h\"","\n",
+		     "#include \"unroll.i\"","\n",
 		     "\n",
 		     format(XCode)]).
 

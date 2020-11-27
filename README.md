@@ -6,9 +6,8 @@ Declarations
 
     {defun,Name,[Decl],Code}
 
-    {decl, X}
-    {decl, X, [N]}
-    {decl, X, [N,M]}
+    {decl, {var,x}}
+    {decl, {subscript,{var,x},[{var,i}]}}
 
 Variables and subscripts
 
@@ -19,7 +18,6 @@ Variables and subscripts
     
 Basic arithmetic operations, default to operate on unsigned word size elements
 
-    {move, [D], [X]}               -- d = x
     {add0, [D], [X,Y]}             -- d = x+y
     {add,  [D1,D0], [X,Y]}         -- (d1,d0) = x+y
     {addc, [D1,D0], [X,Y,Ci]}      -- (d1,d0) = x+y+ci
@@ -30,12 +28,15 @@ Basic arithmetic operations, default to operate on unsigned word size elements
     {mul,  [P1,P0], [X,Y]}         -- (p1,p0) = x*y
     {mula, [P1,P0], [X,Y,A]}       -- (p1,p0) = x*y + a
     {mulab, [P1,P0], [X,Y,A,B]}    -- (p1,p0) = x*y + a + b
+    {sqr,  [P1,P0], [X]}           -- (p1,p0) = x^2
+    {sqra, [P1,P0], [X,A]}         -- (p1,p0) = x^2	+ a
 
-The X,Y... are either coded as {var,x} or {subscript,{var,x},[Index]} 
+The X,Y... are either coded as {var,x} or {subscript,{var,},[Index]} 
 
 Structured operations
 
     {'for',I,Start,Stop,Step,Code}
+    {'for',I,Start,Stop,Code}	
     {'if',Condition,Then,Else}
     {'if',Condition,Then}
 
