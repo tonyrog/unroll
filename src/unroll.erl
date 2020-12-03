@@ -23,22 +23,23 @@
 %%
 %% Environment:
 -type value() :: undefined | integer() | float().
--type scope() :: #{ VarName::string() => bic_type() }.
--type store() :: #{ VarName::string() => value() }.
-
--type env() :: #{ 
-		  store => store(),   %%  value store (previous scopes)
-		  scope => scope(),   %% current scope 
-		  stack => [scope()], %% stack of scopes
-		  VarName::string() => value  %% current values
+-type scope() :: #{ {value,VarName::string()} => value(),
+		    {type,VarName::string()} => bic_type() }.
+-type env() :: #{
+		 global => scope(),
+		 stack => [scope()]
 		}.
 
 file(File) ->
+    file(File, []).
+
+file(File, FuncRefList) ->
     case bic:file(File) of
 	{ok,Forms} ->
-	    Forms1 = expand(Forms),
-	    io:put_chars(bic:format_definitions(Forms1)),
-	    {ok,Forms1};
+	    Forms1 = bic_transform:func_ref(Forms, FuncRefList),
+	    Forms2 = expand(Forms1),
+	    io:put_chars(bic:format_definitions(Forms2)),
+	    {ok,Forms2};
 	Error ->
 	    Error
     end.
@@ -87,20 +88,24 @@ statement(S=#bic_typedef{}, E) ->
     %% FIXME: introduce type ! in env.
     {S, E};
 statement(S=#bic_decl{name=Var,type=Type,value=Expr}, E) ->
-    E1 = decl(Var,Type,E),
+    E1 = decl(Var,E,Type),
     {Expr1, E2} = expr(Expr, E1),
-    {S#bic_decl{value=Expr1}, E2#{ Var => Expr1 }};
+    {S#bic_decl{value=Expr1}, set_value(Var, E2, Expr1)};
 statement(S=#bic_function{name=Fun, params=Params, body=Code}, E) ->
     E0 = push_env(E),
     %% declare all parameters
     E1 = lists:foldl(fun(#bic_decl{name=Var,type=Type}, Ei) ->
-			     decl(Var,Type,Ei)
+			     decl(Var,Ei,Type)
 		     end, E0, Params),
     %% partial eval body 
     {Code1, E2} = statement_list_(Code, E1),
     E3 = pop_env(E2),
+    Fn = #bic_fn{line=S#bic_function.line,
+		 type=S#bic_function.type,
+		 params=Params},
+    E4 = decl(Fun, E3, Fn),
     S1 = S#bic_function{params=Params,body=Code1},
-    {S1, E3#{ Fun => S1}};
+    {S1, set_value(Fun, E4, S1)};
 statement(Const=#bic_constant{}, E) ->
     {Const,E};
 statement(A=#bic_assign{}, E) ->
@@ -236,40 +241,6 @@ rcat(Code1,Code2) ->
 	    end
     end.
 
-%% scope keeps current declarations
-%% store keeps previous values
-%% stack keeps store stack for reference (not used right now)
-
--spec new_env() -> env().
-
-new_env() ->
-    #{ scope => #{}, store => #{}, stack => [] }.
-
-push_env(E=#{ scope := Scope0, store := Store0, stack := Stack }) ->
-    E#{ scope => #{},
-	store => #{},
-	stack => [Scope0,Store0|Stack]}.
-
-pop_env(E=#{ scope := Scope, store := Store, stack := [Scope0,Store0|Stack]}) ->
-    %% update then "hidden" globals with the new vales
-    E1 = maps:fold(fun(Var,_Type,Ei) ->
-			   case maps:get(Var,Scope0,undefined) of
-			       undefined ->
-				   maps:remove(Var, Ei);
-			       _Type ->
-				   Value0 = maps:get(Var,Store,undefined),
-				   Ei#{ Var => Value0 }
-			   end
-		   end, E, Scope),
-    E1#{ scope => Scope0, store => Store0, stack => Stack }.
-
-
-decl(Var, Type, E = #{ scope := Scope, store := Store }) ->
-    Value = maps:get(Var, E, undefined),   %% previous value, if any
-    E#{ store => Store#{ Var => Value },   %% save previous value in store
-	scope => Scope#{ Var => Type },
-	Var => undefined }.
-    
 
 -spec expr(bic_expr(), env()) ->
 	  {bic_expr()|value(), env()}.
@@ -296,10 +267,25 @@ expr(#bic_constant{base=float,value=V},E) ->
 expr(X=#bic_id{name=Vx}, E) ->
     Value = value(Vx, E, X),
     {Value, E};
-expr(X=#bic_call{func=Func,args=Args}, E) ->
-    {Args1, E1} = expr_list(Args, E),
-    %% FIXME: check if call is to be expanded / unrolled
-    {X#bic_call{func=Func, args=Args1}, E1};
+expr(X=#bic_call{func=Func=#bic_id{name=Name},args=Args}, E0) ->
+    {Actuals, E1} = expr_list(Args, E0),
+    Function = value(Name,E1,undefined),
+    case Function of
+	#bic_function{params=Formals,body=Code} ->
+	    %% assign only constants righ now
+	    F0 = new_env(maps:get(global,E1)),
+	    F1 = lists:foldl(fun({#bic_decl{name=Var,type=Type},Value}, EB0) ->
+				     EB1 = decl(Var, EB0, Type),
+				     set_value(Var, EB1, Value)
+			     end, F0,
+			     lists:zip(Formals,Actuals)),
+	    {Code1,F2} = compound(Code, F1),
+	    io:format("Code1 = ~p\n", [Code1]),
+	    G2 = maps:get(global,F2),
+	    {#bic_compound{code=Code1},E0#{ global => G2}};
+	_ ->
+	    {X#bic_call{func=Func, args=Actuals}, E1}
+    end;
 expr(X=#bic_binary{op=',',arg1=A,arg2=B},E) ->
     {A1,E1} = expr(A,E),
     {B1,E2} = expr(B,E1),
@@ -438,6 +424,36 @@ lhs_ref(Lhs=#bic_binary{op='[]',arg1=#bic_id{name=V},arg2=Index}, E) ->
 bool(true) -> 1;
 bool(false) -> 0.
 
+%% scope keeps current declarations
+%% store keeps previous values
+%% stack keeps store stack for reference (not used right now)
+
+-spec new_env() -> env().
+
+new_env() ->
+    new_env(#{}).
+
+new_env(Globals) ->
+    #{ global => Globals, stack => [] }.
+
+push_env(E=#{ stack := Stack }) ->
+    E#{ stack => [#{}|Stack] }.
+
+pop_env(E=#{ stack := [_|Stack] }) ->
+    E#{ stack => Stack }.
+
+%% 
+decl(Var, E = #{ global := Global, stack := Stack }, Type) ->
+    case Stack of
+	[] ->
+	    E#{ global => decl_(Var, Global, Type) };
+	[Local|Stack1] ->
+	    E#{ stack => [decl_(Var, Local, Type)|Stack1]}
+    end.
+
+decl_(Var, Scope, Type) ->
+    Scope#{ {type,Var}  => Type }.
+
 %% if loop unroll fail then variables in body etc need
 %% to be unmarked (set to undefined) since the value are 
 %% unknown.
@@ -445,44 +461,116 @@ bool(false) -> 0.
 unset_values(Code, E) ->
     bic_transform:fold(
       fun(F=#bic_id{name=Var}, Ei) ->
-	      {F,Ei#{ Var => undefined }};
+	      {F, unset_value(Var, Ei)};
 	 (F, Ei) ->
 	      {F, Ei}
       end, E, Code).
 
+-spec type(Var::string() | {string(),[integer()]}, env()) ->
+	  bic_type().
+
+%% NOTE! variable may be set to undefined! to signal that they are unset
+%% so undefined variables are either undefined or set to undefined
+
+type(Var, #{ global:=G, stack:=Stack}) ->
+    type_(Var, Stack, G).
+
+type_(Var, [Local|Stack], G) ->
+    case maps:get({type,Var},Local,undefined) of
+	undefined -> type_(Var,Stack,G);
+	Type -> Type
+    end;
+type_(Var, [], G) ->
+    maps:get({type,Var},G,undefined).
+
+
 -spec value(Var::string() | {string(),[integer()]}, env(), value()) ->
 	  value().
 
-value(Var, E, Default) when 
-      is_list(Var); is_list(element(1,Var)) ->
-    case maps:get(Var,E,undefined) of
-	undefined ->
-	    ?dbg("value: ~p default ~p\n", [Var, Default]),
-	    Default;
-	Value -> 
-	    ?dbg("value: ~p is ~p\n", [Var, Value]),
-	    Value
-    end.
+%% NOTE! variable may be set to undefined! to signal that they are unset
+%% so undefined variables are either undefined or set to undefined
+
+value(Var, #{ global:=G, stack:=Stack}, Default) ->
+    value_(Var, Stack, G, Default).
+
+value_(Var, [Local|Stack], G, Default) ->
+    case maps:get({value,Var},Local,undefined) of
+	undefined -> value_(Var,Stack,G,Default);
+	Value -> Value
+    end;
+value_(Var, [], G, Default) ->
+    case maps:get({value,Var},G,undefined) of
+	undefined -> Default;
+	Value -> Value
+    end.    
 
 -spec set_value(Var::string() | {string(),[integer()]}, env(), value()) ->
-	  value().
+	  env().
 
-set_value(Var, E, Value) when 
-      is_list(Var); is_list(element(1,Var)) ->
-    ?dbg("set_value: ~p = ~p\n", [Var, Value]),
-    E#{ Var => Value }.
+set_value(Var, E=#{ global := G, stack := Stack}, Value) ->
+    set_value_(Var, Stack, [], G, E, Value).
+
+set_value_(Var, [Local|Stack], Stack1, G, E, Value) ->
+    case maps:get({type,Var},Local,undefined) of
+	undefined -> set_value_(Var,Stack,[Local|Stack1],G,E,Value);
+	_Type -> 
+	    Local1 = Local#{{value,Var}=>Value },
+	    Stack2 = lists:reverse(Stack1,[Local1|Stack]),
+	    E#{ stack => Stack2 }
+    end;
+set_value_(Var, [], _RStack, G, E, Value) ->
+    case maps:get({type,Var},G,undefined) of    
+	undefined -> error({undefined, Var});
+	_Type ->
+	    G1 = G#{{value,Var}=>Value },
+	    E#{ global => G1 }
+    end.
+
+-spec unset_value(Var::string() | {string(),[integer()]}, env()) ->
+	  env().
+
+unset_value(Var, E=#{ global := G, stack := Stack}) ->
+    unset_value_(Var, Stack, [], G, E).
+
+unset_value_(Var, [Local|Stack], Stack1, G, E) ->
+    case maps:find({type,Var},Local) of
+	{ok,undefined} -> E;
+	{ok,_Type} ->
+	    Local1 = Local#{{value,Var}=>undefined },
+	    Stack2 = lists:reverse(Stack1,[Local1|Stack]),
+	    E#{ stack => Stack2 };
+	error ->
+	    unset_value_(Var,Stack,[Local|Stack1],G,E)
+    end;
+unset_value_(Var, [], _RStack, G, E) ->
+    case maps:find({type,Var},G) of    
+	{ok,undefined} -> E;
+	{ok,_Type} ->
+	    G1 = G#{{value,Var}=>undefined },
+	    E#{ global => G1 };
+	error -> E
+    end.
 
 -spec add_value(Var::string() | {string(),[integer()]}, env(), value()) ->
 	  value().
 
-add_value(Var, E, Value) when 
-      is_list(Var); is_list(element(1,Var)) ->
-    ?dbg("add_value: ~p = ~p\n", [Var, Value]),
-    case maps:find(Var, E) of
-	{ok,undefined} ->
+add_value(Var, E=#{ global := G, stack := Stack}, Value) ->
+    ?dbg("set_value: ~p = ~p\n", [Var, Value]),
+    add_value_(Var, Stack, [], G, E, Value).
+
+add_value_(Var, [Local|Stack], Stack1, G, E, Value) ->
+    case maps:get({value,Var},Local,undefined) of
+	undefined -> add_value_(Var,Stack,[Local|Stack1],G,E,Value);
+	PrevValue -> 
+	    Local1 = Local#{{value,Var} => PrevValue + Value },
+	    Stack2 = lists:reverse(Stack1,[Local1|Stack]),
+	    E#{ stack => Stack2 }
+    end;
+add_value_(Var, [], _RStack, G, E, Value) ->
+    case maps:get({value,Var},G,undefined) of    
+	undefined -> 
 	    E;
-	{ok,PrevValue} ->
-	    E#{ Var => PrevValue + Value };
-	error ->
-	    E#{ Var => undefined }
+	PrevValue ->
+	    G1 = G#{{value,Var} => PrevValue+Value },
+	    E#{ global => G1 }
     end.

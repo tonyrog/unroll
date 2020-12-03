@@ -28,5 +28,5 @@ int big_add(UINT_T x[], int xl, UINT_T y[], int yl, UINT_T r[])
 
 int big_add_nm(UINT_T x[], UINT_T y[], UINT_T r[])
 {
-    return big_add(x, 4, y, 4, r);
+    big_add(x, 4, y, 4, r);
 }
