@@ -1,11 +1,10 @@
-
 typedef unsigned UINT_T;
 
 void mula(UINT_T src1, UINT_T src2, UINT_T a, UINT_T* prod1, UINT_T* prod0);
 void add0(UINT_T src1, UINT_T src2, UINT_T* sum);
 void addc(UINT_T src1, UINT_T src2, UINT_T ci, UINT_T* co, UINT_T* sum);
 
-int mul(UINT_T x[], int xl, UINT_T y[], int yl, UINT_T r[])
+int big_mul(UINT_T x[], int xl, UINT_T y[], int yl, UINT_T r[])
 {
     UINT_T c, cp;
     UINT_T ij, p;
@@ -25,12 +24,12 @@ int mul(UINT_T x[], int xl, UINT_T y[], int yl, UINT_T r[])
     return (r[xl+yl-1]==0) ? xl+yl-1 : xl+yl;
 }
 
-int mul_4_4(UINT_T x[], UINT_T y[], UINT_T r[])
+int big_mul_4_4(UINT_T x[], UINT_T y[], UINT_T r[])
 {
-    return mul(x, 4, y, 4, r);
+    return big_mul(x, 4, y, 4, r);
 }
 
-int mul_16_16(UINT_T x[], UINT_T y[], UINT_T r[])
+int big_mul_16_16(UINT_T x[], UINT_T y[], UINT_T r[])
 {
-    return mul(x, 16, y, 16, r);
+    return big_mul(x, 16, y, 16, r);
 }

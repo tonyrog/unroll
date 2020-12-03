@@ -1,100 +1,87 @@
 # unroll - Code unrolling and generation
 
-Initially very special code fragments are accepted
+Unroll is aimed at unrolling C code produced by
+the bic C parser (https://github.com/tonyrog/bic)
 
-Declarations
+# big digit support
 
-    {defun,Name,[Decl],Code}
+Algorithms implementing bignum operations need some basic code
+fragments that handle carry, borrow and overflow.
+There are some included in "unroll.i" that with the
+latest compilers yied more or less optimal code.
 
-    {decl, {var,x}}
-    {decl, {subscript,{var,x},[{var,i}]}}
+Add digits x and y and return the sum.
 
-Variables and subscripts
+    void add0(UINT_T x, UINT_T y, UINT_T* s);
+	
+		s = x+y;
+	
+Add digits x and y and return the sum and a carry.
 
-    {var,x}
-    {subscript,{var,x},[5]}
-    {subscript,{var,x},[{var,i}]}
-    {subscript,{var,x},[{'+',{var,i},1}]}
-    
-Basic arithmetic operations, default to operate on unsigned word size elements
+	void add(UINT_T x, UINT_T y, UINT_T* co, UINT_T* s);
+	
+		s = x+y;
+		co = carry(x+y);
+	
+Add digits x and y and a ci, return the sum and a the resulting  carry.
 
-    {add0, [D], [X,Y]}             -- d = x+y
-    {add,  [D1,D0], [X,Y]}         -- (d1,d0) = x+y
-    {addc, [D1,D0], [X,Y,Ci]}      -- (d1,d0) = x+y+ci
-    {sub0, [D], [X,Y]}             -- d = x-y
-    {sub,  [Bo, D0], [X,Y]}        -- (bo,d) = x-y
-    {subb, [Bo, D0], [X,Y,Bi]}     -- (bo,d) = x-(bi+y)
-    {mul0, [P0], [X,Y]}            -- p0 = x*y
-    {mul,  [P1,P0], [X,Y]}         -- (p1,p0) = x*y
-    {mula, [P1,P0], [X,Y,A]}       -- (p1,p0) = x*y + a
-    {mulab, [P1,P0], [X,Y,A,B]}    -- (p1,p0) = x*y + a + b
-    {sqr,  [P1,P0], [X]}           -- (p1,p0) = x^2
-    {sqra, [P1,P0], [X,A]}         -- (p1,p0) = x^2	+ a
+	void addc(UINT_T x, UINT_T y, UINT_T ci, UINT_T* co, UINT_T* s);
+	
+		s = x+y + ci;
+		co = carry(x+y);	
 
-The X,Y... are either coded as {var,x} or {subscript,{var,},[Index]} 
+Subtract x and y, return difference.
 
-Structured operations
+	void sub0(UINT_T x, UINT_T y, UINT_T* d);
+	
+		d = x-y;
+		
+Subtract x and y, return difference and a borrow.
 
-    {'for',I,Start,Stop,Step,Code}
-    {'for',I,Start,Stop,Code}	
-    {'if',Condition,Then,Else}
-    {'if',Condition,Then}
+	void sub(UINT_T x, UINT_T y, UINT_T* bo, UINT_T* d);
+	
+		d = x-y;
+		bo = borrow(x-y);
 
-index expression and conditions may include
+Subtract x and y with borrow, return difference and a resulting borrow.
 
-    integer constants  ...-2,-1,0,1,2...
-    boolean constants  true, false
-    {'-',X}
-    {'~',X}
-    {'!',X}
-    {'+',X,Y}
-    {'-',X,Y}
-    {'*',X,Y}
-    {'/',X,Y}
-    {'%',X,Y}
-    {'&',X,Y}
-    {'|',X,Y}
-    {'^',X,Y}
-    {'>>',X,Y}
-    {'<<',X,Y}
-    {'<',X,Y}
-    {'<=',X,Y}
-    {'>',X,Y}
-    {'>=',X,Y}
-    {'==',X,Y}
-    {'!=',X,Y}
-    {'&&',X,Y}
-    {'||',X,Y}
-    {'=',Lhs,Rhs}
-    {'?:',Cond,Then,Else}
-    {var,Name}
-    {subscript,{var,Name},[Expr...]}
+	void subb(UINT_T x, UINT_T y, UINT_T bi, UINT_T* bo, UINT_T* d);
+	
+		d = x-(y+bi);
+		bo = borrow(x-(y+bi));
 
-Environment
+Multiply x and y and return the single word result in p0
 
-For loop variables in 'for' statement the variables
-is put into an environment for each lap during the
-expansion. The expand function is called with an environment
-that may hold other "variables" (constants) and constant
-arrays (maps).
+	void mul0(UINT_T x, UINT_T y, UINT_T* p0);
+	
+Multiply x and y and return the product in (p1,p0)	where p1 is the
+high bits of the product and p0 is the low bits of the product
+	
+	void mul(UINT_T x, UINT_T y, UINT_T* p1, UINT_T* p0);
+	
+		(p1,p0) = x*y;
 
-Example
+Add a to the product of x and y, return result as (p1,p0)
 
-    > E = #{ {var,a} => 12,
-             {var,x} => #{ [0] => 3, [1] => 5, [2] => 7, [3] => 11 } }.
+	void mula(UINT_T x, UINT_T y, UINT_T a, UINT_T* p1, UINT_T* p0);
+	
+		(p1,p0) = x*y + a;
+		
+Square x and return result as (p1,p0)
 
-This defines a=12 and x[] = {3,5,7,11}
+	void sqr(UINT_T x, UINT_T* p1, UINT_T* p0);
+	
+		(p1,p0) = x*x;
 
-Expand through calling
+Square x add a and return result as (p1,p0)
 
-    > unroll:expand({var,a}, E).
-    > 12
+	void sqra(UINT_T x, UINT_T a, UINT_T* p1, UINT_T* p0);	
 
-    > unroll:expand({subscript,{var,x},[2]},E).
-    > 7
+		(p1,p0) = x*x + a;
+	
+Add both a and b to the product of x and y, return result as (p1,p0)
 
-unroll init of array a[0]..a[9]
-
-    > unroll:expand({'for',{var,i},0,9,1,
-       [{'=',{subscript,{var,a},[{var,i}]},0}]}, #{}).
-
+	void mulab(UINT_T x, UINT_T y, UINT_T a, UINT_T b, UINT_T* p1, UINT_T* p0);
+	
+		(p1,p0) = x*x + a + b;
+		
