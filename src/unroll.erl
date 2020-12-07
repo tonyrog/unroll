@@ -122,13 +122,6 @@ statement(A=#bic_compound{code=Stmts},E) ->
 	    {#bic_empty{}, E1};
 	{Stmts1,E1} ->
 	    {A#bic_compound{code=Stmts1},E1}
-    end;
-statement(A, E) when is_list(A) ->
-    case compound(A, E) of
-	{[], E1} ->
-	    {#bic_empty{}, E1};
-	{A1,E1} -> 
-	    {A1,E1}
     end.
 
 compound(Code, E) when is_list(Code) ->
@@ -248,22 +241,8 @@ rcat(Code1,Code2) ->
 %% meta expressions
 expr(undefined, E) -> {undefined,E};
 expr(Const,E) when is_number(Const) -> {Const,E};
-expr(#bic_constant{base=10,token=V},E) -> 
-    {list_to_integer(V, 10),E};
-expr(#bic_constant{base=16,token=[$0,$x|V]},E) ->
-    {list_to_integer(V, 16),E};
-expr(#bic_constant{base=16,token=[$0,$X|V]},E) ->
-    {list_to_integer(V, 16),E};
-expr(#bic_constant{base=2,token=[$0,$b|V]},E) ->
-    {list_to_integer(V, 2),E};
-expr(#bic_constant{base=2,token=[$0,$B|V]},E) ->
-    {list_to_integer(V, 2),E};
-expr(#bic_constant{base=8,token=[$0|V]},E) -> 
-    {list_to_integer(V, 8),E};
-expr(#bic_constant{base=float,token=V=[$.|_]},E) -> 
-    {list_to_float([$0|V]),E};
-expr(#bic_constant{base=float,token=V},E) -> 
-    {list_to_float(V),E};
+expr(#bic_constant{base=B,value=V},E) when is_integer(B) -> {V,E};
+expr(#bic_constant{base=float,value=V},E) -> {V,E};
 expr(X=#bic_id{name=Vx}, E) ->
     Value = value(Vx, E, X),
     {Value, E};
