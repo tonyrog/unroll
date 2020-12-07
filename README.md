@@ -8,7 +8,7 @@ the bic C parser (https://github.com/tonyrog/bic)
 Algorithms implementing bignum operations need some basic code
 fragments that handle carry, borrow and overflow.
 There are some included in "unroll.i" that with the
-latest compilers yied more or less optimal code.
+latest compilers yield more or less optimal code.
 
 Add digits x and y and return the sum.
 
@@ -29,6 +29,22 @@ Add digits x and y and a ci, return the sum and a the resulting  carry.
 	
 		s = x+y + ci;
 		co = carry(x+y);	
+
+Add digit to digitx3
+
+	void add31(UINT_T a2,UINT_T a1,UINT_T a0,
+		              INT_T b0,
+                      UINT_T* d2,UINT_T* d1, UINT_T* d0)
+					  
+        (d2,d1,d0) = (a2,a1,a0) + b0
+					  
+Add digitx2 to digitx3
+
+	 void add32(UINT_T a2,UINT_T a1,UINT_T a0,
+                UINT_T b1,UINT_T b0,
+                UINT_T* d2,UINT_T* d1,UINT_T* d0)
+			
+	     (d2,d1,d0) = (a2,a1,a0) + (b1,b0)
 
 Subtract x and y, return difference.
 

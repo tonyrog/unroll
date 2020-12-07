@@ -26,7 +26,7 @@ int big_mul(UINT_T x[], int xl, UINT_T y[], int yl, UINT_T r[])
 
 int big_mul_4_4(UINT_T x[], UINT_T y[], UINT_T r[])
 {
-    return big_mul(x, 4, y, 4, r);
+    big_mul(x, 4, y, 4, r);
 }
 
 int big_mul_16_16(UINT_T x[], UINT_T y[], UINT_T r[])

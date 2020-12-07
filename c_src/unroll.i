@@ -8,21 +8,23 @@
 #warning "UINTD_T not defined"
 #endif
 
+#define INLINE
+
 #define bit_sizeof(T) (sizeof(T)*8)
 
-static inline void add0(UINT_T src1, UINT_T src2, UINT_T* sum)
+static INLINE void add0(UINT_T src1, UINT_T src2, UINT_T* sum)
 {
     *sum = src1 + src2;
 }
 
-static inline void add(UINT_T src1, UINT_T src2, UINT_T* co, UINT_T* sum)
+static INLINE void add(UINT_T src1, UINT_T src2, UINT_T* co, UINT_T* sum)
 {
     src1 += src2;
     *sum = src1;
     *co = (src1 < src2);
 }
 
-static inline void addc(UINT_T src1, UINT_T src2, UINT_T ci, UINT_T* co, UINT_T* sum)
+static INLINE void addc(UINT_T src1, UINT_T src2, UINT_T ci, UINT_T* co, UINT_T* sum)
 {
     src1 += ci;
     ci = (src1 < ci);
@@ -31,7 +33,29 @@ static inline void addc(UINT_T src1, UINT_T src2, UINT_T ci, UINT_T* co, UINT_T*
     *co = ci + (src1 < src2);
 }
 
-static inline void sub0(UINT_T src1, UINT_T src2, UINT_T* diff)
+// (d1,d1,d0) = (a2,a1,a0) + b0
+static INLINE void add31(UINT_T a2,UINT_T a1,UINT_T a0,
+			 UINT_T b0,
+			 UINT_T* d2,UINT_T* d1, UINT_T* d0)
+{
+    UINT_T c;
+    add(a0, b0, &c, d0);
+    add(a1, c,  &c, d1);
+    add(a2, c,  &c, d2);
+}
+
+// (d1,d1,d0) = (a2,a1,a0) + (b1,b0)
+static INLINE void add32(UINT_T a2,UINT_T a1,UINT_T a0,
+			 UINT_T b1,UINT_T b0,
+			 UINT_T* d2,UINT_T* d1,UINT_T* d0)
+{
+    UINT_T c;
+    add(a0, b0, &c,d0);
+    addc(a1,b1,c,&c,d1);
+    add(a2,c,&c,d2);
+}
+
+static INLINE void sub0(UINT_T src1, UINT_T src2, UINT_T* diff)
 {
     *diff = src1 - src2;
 }
@@ -43,7 +67,7 @@ static inline void sub(UINT_T src1, UINT_T src2, UINT_T* bo, UINT_T* diff)
     *bo = (src2 > src1);
 }
 
-static inline void subb(UINT_T src1, UINT_T src2, UINT_T bi, UINT_T* bo, UINT_T* diff)
+static INLINE void subb(UINT_T src1, UINT_T src2, UINT_T bi, UINT_T* bo, UINT_T* diff)
 {
     src2 += bi;
     bi = (src2 < bi);
@@ -52,7 +76,7 @@ static inline void subb(UINT_T src1, UINT_T src2, UINT_T bi, UINT_T* bo, UINT_T*
     *diff = src2;
 }
 
-static inline void mul0(UINT_T src1, UINT_T src2, UINT_T* p0)
+static INLINE void mul0(UINT_T src1, UINT_T src2, UINT_T* p0)
 {
     *p0 = src1 * src2;
 }
@@ -61,7 +85,7 @@ static inline void mul0(UINT_T src1, UINT_T src2, UINT_T* p0)
 
 #define HSHIFT bit_sizeof(UINT_T)
  
-static inline void mul(UINT_T src1, UINT_T src2,
+static INLINE void mul(UINT_T src1, UINT_T src2,
 		       UINT_T* prod1, UINT_T* prod0)
 {
     UINTD_T t = ((UINTD_T)src1)*src2;
@@ -69,7 +93,7 @@ static inline void mul(UINT_T src1, UINT_T src2,
     *prod0 = t;
 }
 
-static inline void mula(UINT_T src1, UINT_T src2, UINT_T a,
+static INLINE void mula(UINT_T src1, UINT_T src2, UINT_T a,
 			UINT_T* prod1, UINT_T* prod0)
 {
     UINTD_T t = ((UINTD_T)src1)*src2 + a;
@@ -77,21 +101,21 @@ static inline void mula(UINT_T src1, UINT_T src2, UINT_T a,
     *prod0 = t;
 }
 
-static inline void sqra(UINT_T src1, UINT_T a, UINT_T* prod1, UINT_T* prod0)
+static INLINE void sqra(UINT_T src1, UINT_T a, UINT_T* prod1, UINT_T* prod0)
 {
     UINTD_T t = ((UINTD_T)src1)*src1 + a;
     *prod1 = t >> HSHIFT;
     *prod0 = t;
 }
 
-static inline void sqr(UINT_T src1, UINT_T* prod1, UINT_T* prod0)
+static INLINE void sqr(UINT_T src1, UINT_T* prod1, UINT_T* prod0)
 {
     UINTD_T t = ((UINTD_T)src1)*src1;
     *prod1 = t >> HSHIFT;
     *prod0 = t;
 }
 
-static inline void mulab(UINT_T src1, UINT_T src2, UINT_T a, UINT_T b,
+static INLINE void mulab(UINT_T src1, UINT_T src2, UINT_T a, UINT_T b,
 			 UINT_T* prod1, UINT_T* prod0)
 {
     UINTD_T t = ((UINTD_T)src1)*src2 + a + b;
@@ -105,7 +129,7 @@ static inline void mulab(UINT_T src1, UINT_T src2, UINT_T a, UINT_T b,
 #define LMASK  ((UINT_T)((((UINT_T)1) << HSHIFT)-1))
 #define HMASK  (LMASK << HSHIFT)
 
-static inline void mula(UINT_T src1, UINT_T src2, UINT_T a,
+static INLINE void mula(UINT_T src1, UINT_T src2, UINT_T a,
 			UINT_T* prod1, UINT_T* prod0)
 {
     UINTH_T a0 = src1;
@@ -131,7 +155,7 @@ static inline void mula(UINT_T src1, UINT_T src2, UINT_T a,
     *prod0 = (p1 << HSHIFT) | (p0 & LMASK);
 }
 
-static inline void sqra(UINT_T src1, UINT_T a,
+static INLINE void sqra(UINT_T src1, UINT_T a,
 			UINT_T* prod1, UINT_T* prod0)
 {
     UINTH_T a0 = src1;
@@ -154,7 +178,7 @@ static inline void sqra(UINT_T src1, UINT_T a,
     *prod0 = (p1 << HSHIFT) | (p0 & LMASK);
 }
 
-static inline void sqr(UINT_T src1,UINT_T* prod1, UINT_T* prod0)
+static INLINE void sqr(UINT_T src1,UINT_T* prod1, UINT_T* prod0)
 {
     UINTH_T a0 = src1;
     UINTH_T a1 = src1 >> HSHIFT;
@@ -174,7 +198,7 @@ static inline void sqr(UINT_T src1,UINT_T* prod1, UINT_T* prod0)
     *prod0 = (p1 << HSHIFT) | (p0 & LMASK);
 }
 
-static inline void mulab(UINT_T src1, UINT_T src2, UINT_T a, UINT_T b,
+static INLINE void mulab(UINT_T src1, UINT_T src2, UINT_T a, UINT_T b,
 			 UINT_T* prod1, UINT_T* prod0)
 {
     UINT_T c0;
@@ -184,10 +208,11 @@ static inline void mulab(UINT_T src1, UINT_T src2, UINT_T a, UINT_T b,
     assert(c0 == 0);
 }
 
-static inline void mul(UINT_T src1, UINT_T src2,
+static INLINE void mul(UINT_T src1, UINT_T src2,
 		       UINT_T* prod1, UINT_T* prod0)
 {
     mula(src1, src2, 0, prod1, prod0);
 }
 
 #endif
+

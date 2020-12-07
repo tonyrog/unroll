@@ -7,11 +7,11 @@
 
 -module(unroll).
 
--export([file/1]).
+-export([file/1, file/2]).
 -export([expand/1, expand/2]).
 -export([new_env/0, push_env/1, pop_env/1]).
 
--compile(export_all). %% test
+-compile(export_all).
 
 -include_lib("bic/include/bic.hrl").
 
@@ -248,21 +248,21 @@ rcat(Code1,Code2) ->
 %% meta expressions
 expr(undefined, E) -> {undefined,E};
 expr(Const,E) when is_number(Const) -> {Const,E};
-expr(#bic_constant{base=10,value=V},E) -> 
+expr(#bic_constant{base=10,token=V},E) -> 
     {list_to_integer(V, 10),E};
-expr(#bic_constant{base=16,value=[$0,$x|V]},E) ->
+expr(#bic_constant{base=16,token=[$0,$x|V]},E) ->
     {list_to_integer(V, 16),E};
-expr(#bic_constant{base=16,value=[$0,$X|V]},E) ->
+expr(#bic_constant{base=16,token=[$0,$X|V]},E) ->
     {list_to_integer(V, 16),E};
-expr(#bic_constant{base=2,value=[$0,$b|V]},E) ->
+expr(#bic_constant{base=2,token=[$0,$b|V]},E) ->
     {list_to_integer(V, 2),E};
-expr(#bic_constant{base=2,value=[$0,$B|V]},E) ->
+expr(#bic_constant{base=2,token=[$0,$B|V]},E) ->
     {list_to_integer(V, 2),E};
-expr(#bic_constant{base=8,value=[$0|V]},E) -> 
+expr(#bic_constant{base=8,token=[$0|V]},E) -> 
     {list_to_integer(V, 8),E};
-expr(#bic_constant{base=float,value=V=[$.|_]},E) -> 
+expr(#bic_constant{base=float,token=V=[$.|_]},E) -> 
     {list_to_float([$0|V]),E};
-expr(#bic_constant{base=float,value=V},E) -> 
+expr(#bic_constant{base=float,token=V},E) -> 
     {list_to_float(V),E};
 expr(X=#bic_id{name=Vx}, E) ->
     Value = value(Vx, E, X),
@@ -331,7 +331,7 @@ expr(X=#bic_unary{op='++',arg=A}, E) ->
 expr(X=#bic_unary{op='--',arg=A}, E) ->
     {A1,Ref,E1} = lhs_ref(A, E),
     {X#bic_unary{arg=A1}, add_value(Ref, E1, -1)};
-
+%% fixme add sizeof/typeof
 expr(X=#bic_unary{op=Op,arg=A}, E) ->
     {A1,E1} = expr(A,E),
     case is_number(A1) of
